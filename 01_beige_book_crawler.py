@@ -11,8 +11,8 @@ from urllib.parse import urljoin
 BASE = "https://www.federalreserve.gov"
 PUBS = f"{BASE}/monetarypolicy/publications/beige-book-default.htm"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-YEAR_TARGET = "2025"          # 연도
-SAVE_DIR = "beigebook_2025"   # 저장
+YEAR_TARGET = "2025"          
+SAVE_DIR = "beigebook_2025"   
 KEEP_PDF = True               # PDF 보관? (false, PDF 삭제)
 
 os.makedirs(SAVE_DIR, exist_ok=True)
@@ -29,7 +29,7 @@ def ensure_import(mod_name, pip_name=None):
     except ImportError:
         pkg = pip_name or mod_name
         try:
-            print(f"'{pkg}' 패키지가 없어 설치합니다...")
+            print(f"'{pkg}' 설치합니다")
             subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
             __import__(mod_name.split('.')[0])
             return True
@@ -101,7 +101,7 @@ def pdf_to_text(pdf_path) -> str:
                 txt_parts.append(p.extract_text() or "")
         return "\n".join(txt_parts)
     # 최종
-    raise RuntimeError("PDF 텍스트 추출 'pdfminer.six' 또는 'pypdf' 설치 실패")
+    raise RuntimeError("PDF 텍스트 추출 설치 실패")
 
 # 2025년 수집
 r = requests.get(PUBS, headers=HEADERS, timeout=30)
@@ -150,13 +150,13 @@ for yyyymm in months:
             print(f" HTML -> TXT 저장 완료: {txt_name}")
         except Exception as e:
             print(f" HTML -> TXT 실패 ({yyyymm}): {e}")
-            # HTML 실패 시 PDF 폴백
+            # HTML 실패 시
             if yyyymm in pdf_by_month:
                 yyyymmdd, pdf_url = pdf_by_month[yyyymm]
                 pdf_path = os.path.join(SAVE_DIR, f"BeigeBook_{yyyymmdd}.pdf")
                 if not os.path.exists(pdf_path):
                     if not download_binary(pdf_url, pdf_path):
-                        print("PDF 다운로드 실패(폴백도 실패)")
+                        print("PDF 다운로드 실패")
                         continue
                 try:
                     txt = pdf_to_text(pdf_path)
@@ -199,6 +199,6 @@ for yyyymm in months:
     })
 
 # 요약
-print("\n=== TXT 생성 요약 ===")
+print("TXT 요약")
 for s in summary:
     print(f"{s['month']}: txt={'OK' if s['txt'] else 'FAIL'} | source={'HTML' if s['html_used'] else 'PDF'}")
