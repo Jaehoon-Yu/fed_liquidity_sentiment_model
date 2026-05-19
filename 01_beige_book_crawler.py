@@ -7,17 +7,17 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-# ========= 설정 =========
+# 설정
 BASE = "https://www.federalreserve.gov"
 PUBS = f"{BASE}/monetarypolicy/publications/beige-book-default.htm"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-YEAR_TARGET = "2025"          # 수집할 연도
-SAVE_DIR = "beigebook_2025"   # 저장 폴더
-KEEP_PDF = True               # PDF 보관 여부 (False면 변환 후 PDF 삭제)
+YEAR_TARGET = "2025"          # 연도
+SAVE_DIR = "beigebook_2025"   # 저장
+KEEP_PDF = True               # PDF 보관? (false, PDF 삭제)
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-# ========= 패키지 보장(없으면 자동설치) =========
+# 패키지자동설치
 def ensure_import(mod_name, pip_name=None):
     """
     mod_name: import할 모듈명 (ex: 'pdfminer.high_level')
@@ -59,7 +59,6 @@ def html_to_text(url):
     return text
 
 def clean_text(txt: str) -> str:
-    # 사이트 헤더/푸터 잡음 일부 제거
     lines = txt.splitlines()
     drop_patterns = [
         r"^\s*The Fed - Monetary Policy: Beige Book",
@@ -78,7 +77,6 @@ def clean_text(txt: str) -> str:
         if any(p.search(ln) for p in drop_re):
             continue
         kept.append(ln)
-    # 빈 줄 압축
     out, prev_blank = [], False
     for ln in kept:
         blank = (ln.strip() == "")
@@ -87,29 +85,25 @@ def clean_text(txt: str) -> str:
         out.append(ln)
         prev_blank = blank
     return "\n".join(out).strip()
-
-# 실패 시 pypdf
 def pdf_to_text(pdf_path) -> str:
     if ensure_import("pdfminer.high_level", "pdfminer.six"):
         from pdfminer.high_level import extract_text
         try:
             return extract_text(pdf_path)
         except Exception as e:
-            print(" pdfminer.six 추출 실패, pypdf로 폴백:", e)
-    # pypdf 폴백
+            print(" pdfminer.six 추출 실패, pypdf로:", e)
     if ensure_import("pypdf", "pypdf"):
         import pypdf
         txt_parts = []
         with open(pdf_path, "rb") as f:
             reader = pypdf.PdfReader(f)
             for p in reader.pages:
-                # 일부 PDF는 None 반환 빈 문자열 대체
                 txt_parts.append(p.extract_text() or "")
         return "\n".join(txt_parts)
-    # 최종 실패
-    raise RuntimeError("PDF 텍스트 추출을 위한 'pdfminer.six' 또는 'pypdf' 설치 실패")
+    # 최종
+    raise RuntimeError("PDF 텍스트 추출 'pdfminer.six' 또는 'pypdf' 설치 실패")
 
-# ========= 1) 목록에서 2025년 HTML/PDF 링크 수집 =========
+# 2025년 수집
 r = requests.get(PUBS, headers=HEADERS, timeout=30)
 r.raise_for_status()
 soup = BeautifulSoup(r.text, "html.parser")
@@ -141,7 +135,7 @@ for a in soup.find_all("a", href=True):
 months = sorted(set(pdf_by_month.keys()).union(html_by_month.keys()))
 print("대상 월:", months)
 
-# ========= 2) 각 월: HTML 있으면 TXT, 없으면 PDF→TXT =========
+# 각 월HTML
 summary = []
 for yyyymm in months:
     print(f"\n=== {yyyymm} 처리중 ===")
@@ -169,13 +163,12 @@ for yyyymm in months:
                     cleaned = clean_text(txt)
                     with open(txt_name, "w", encoding="utf-8") as f:
                         f.write(cleaned or txt)
-                    print(f"PDF -> TXT(폴백) 저장 완료: {txt_name}")
+                    print(f"PDF -> TXT 저장 완료: {txt_name}")
                     if not KEEP_PDF:
                         os.remove(pdf_path)
                 except Exception as e2:
-                    print(f" PDF -> TXT 폴백 실패: {e2}")
+                    print(f" PDF -> TXT 실패: {e2}")
     else:
-        # HTML이 없으면 PDF로 변환
         if yyyymm not in pdf_by_month:
             print(f"{yyyymm}: HTML/PDF 모두 없음")
             continue
@@ -205,7 +198,7 @@ for yyyymm in months:
         "html_used": (yyyymm in html_by_month)
     })
 
-# ========= 3) 요약 =========
+# 요약
 print("\n=== TXT 생성 요약 ===")
 for s in summary:
     print(f"{s['month']}: txt={'OK' if s['txt'] else 'FAIL'} | source={'HTML' if s['html_used'] else 'PDF'}")
